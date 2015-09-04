@@ -13,12 +13,12 @@ delimiters() :: {binary(), binary()}.
 
 ### Render
 ``` erlang
-render(template() | render_fun(), context())               -> binary().
-render(template() | render_fun(), delimiters(), context()) -> binary().
+render(template() | renderer(), context())               -> binary().
+render(template() | renderer(), delimiters(), context()) -> binary().
 ```
 
 ### Compile
 ``` erlang
-compile(template())               -> render_fun().
-compile(template(), delimiters()) -> render_fun().
+compile(template())               -> renderer().
+compile(template(), delimiters()) -> renderer().
 ```
