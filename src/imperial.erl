@@ -107,11 +107,14 @@ get_binary(Key, Context, Escape) ->
         undefined ->
             <<>>;
         {ok, Value} ->
-            case to_binary(Value, Escape) of
+            case to_binary(Value) of
                 error ->
                     error({could_not_encode, Key, Value, Context});
                 Binary ->
-                    Binary
+                    case Escape of
+                        true  -> escape(Binary);
+                        false -> Binary
+                    end
             end
     end.
 
@@ -137,14 +140,6 @@ get_path([Key | Keys], Map) when is_map(Map) ->
 get_path(_Path, _Value) ->
     undefined.
 
-%% @private
-%% @doc Helper function for turning a result from get/2 into a binary.
-%% The second parameter specifies if the resulting binary should be escaped.
--spec to_binary(Value :: binary() | integer() | float() | atom(), Escape :: boolean()) ->
-    Result :: binary().
-to_binary(Value, true)  -> escape(to_binary(Value));
-to_binary(Value, false) -> to_binary(Value).
-
 %% @doc Turn an erlang term into a binary
 to_binary(Value) when is_binary(Value)  -> Value;
 to_binary(Value) when is_integer(Value) -> integer_to_binary(Value);
@@ -153,8 +148,7 @@ to_binary(Value) when is_atom(Value)    -> atom_to_binary(Value, utf8);
 to_binary(_Value)                       -> error.
 
 %% @doc Escape a string or binary
-escape(Binary) when is_binary(Binary) -> escape(unicode:characters_to_list(Binary));
-escape(String) when is_list(String)   -> escape(String, []).
+escape(Binary) when is_binary(Binary) -> escape(unicode:characters_to_list(Binary), []).
 
 %% @doc Escape a string
 escape([], Acc)          -> unicode:characters_to_binary(lists:reverse(Acc));

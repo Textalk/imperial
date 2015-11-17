@@ -152,7 +152,6 @@ tag_type_inverted_section_nonempty_list_test() ->
     CtxList = #{<<"name">> => [ #{} || _ <- lists:seq(1,3)]},
     test_helper(<<"{{^name}}section{{/name}}">>, <<>>, CtxList).
 
-
 tag_type_comment_test() ->
     test_helper(<<"{{!comment}}">>, <<>>, #{}).
 
@@ -161,6 +160,20 @@ tag_type_comment_empty_test() ->
 
 tag_type_comment_multiline_test() ->
     test_helper(<<"{{!\ncomment\ncomment\ncomment\n\n}}">>, <<>>, #{}).
+
+invalid_tag_value_test() ->
+    Template = <<"{{#a}}{{b}}{{/a}}">>,
+    Ctx = #{<<"a">> => #{<<"b">> => #{<<"c">> => true}}},
+    ?assertError(
+       {
+        could_not_encode,
+        [<<"b">>],
+        #{<<"c">> := true},
+        [#{<<"b">> := #{<<"c">> := true}},
+         #{<<"a">> := #{<<"b">> := #{<<"c">> := true}}}]
+       },
+       imperial:render(Template, Ctx)
+      ).
 
 test_helper(Template, Expected, Ctx) ->
     Result = imperial:render(Template, Ctx),
