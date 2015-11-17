@@ -21,7 +21,7 @@
 %% THE SOFTWARE.
 
 -module(imperial).
--export([render/2, render/3, compile/1, compile/2, get/2, to_binary/2]).
+-export([render/2, render/3, compile/1, compile/2, get/2, get_binary/3]).
 
 -define(MERL_NO_TRANSFORM, true).
 
@@ -89,7 +89,6 @@ compile(Template, {Left, Right} = Delimiters)
     {value, Render, _Bindings} = erl_eval:expr(FunExpr, Bindings),
     Render.
 
-%% @private
 %% @doc Get a value by key from given contexts.
 %% The Key is a list of binaries. If the empty path is given
 %% then this corresponds to the current context or {{.}} in mustache.
@@ -98,6 +97,23 @@ compile(Template, {Left, Right} = Delimiters)
 -spec get(Key :: key(), Context :: context()) -> {ok, Result :: term()} | undefined.
 get([], [Item | _Contexts])          -> {ok, Item};
 get(Key, Contexts) when is_list(Key) -> context_get(Key, Contexts).
+
+%% @doc Get a value by key from given contexts and encode it as a binary.
+%% If an error has occured when trying to encode the value as a binary then
+%% throw an error with the path and current context to ease debugging.
+-spec get_binary(Key :: key(), Context :: context(), Escape :: boolean()) -> binary().
+get_binary(Key, Context, Escape) ->
+    case get(Key, Context) of
+        undefined ->
+            <<>>;
+        {ok, Value} ->
+            case to_binary(Value, Escape) of
+                error ->
+                    error({could_not_encode, Key, Value, Context});
+                Binary ->
+                    Binary
+            end
+    end.
 
 %% @private
 %% @doc Get the first value from the given contexts
@@ -124,18 +140,17 @@ get_path(_Path, _Value) ->
 %% @private
 %% @doc Helper function for turning a result from get/2 into a binary.
 %% The second parameter specifies if the resulting binary should be escaped.
--spec to_binary({ok, Value :: binary(), integer() | float() | atom() | list()} | undefined) ->
+-spec to_binary(Value :: binary() | integer() | float() | atom(), Escape :: boolean()) ->
     Result :: binary().
-to_binary({ok, Value}, true)   -> escape(to_binary(Value));
-to_binary({ok, Value}, false)  -> to_binary(Value);
-to_binary(undefined, _Escaped) -> <<>>.
+to_binary(Value, true)  -> escape(to_binary(Value));
+to_binary(Value, false) -> to_binary(Value).
 
 %% @doc Turn an erlang term into a binary
 to_binary(Value) when is_binary(Value)  -> Value;
 to_binary(Value) when is_integer(Value) -> integer_to_binary(Value);
 to_binary(Value) when is_float(Value)   -> float_to_binary(Value, [{decimals, 2}]);
 to_binary(Value) when is_atom(Value)    -> atom_to_binary(Value, utf8);
-to_binary(Value) when is_list(Value)    -> unicode:characters_to_binary(Value).
+to_binary(_Value)                       -> error.
 
 %% @doc Escape a string or binary
 escape(Binary) when is_binary(Binary) -> escape(unicode:characters_to_list(Binary));
@@ -178,11 +193,7 @@ do_compile(Template, State0, Acc0) ->
             case Tag of
                 %% If it's a simple tag thats just compiled into a to_binary-wrapped get call
                 {tag, Escaped, Key} ->
-                    Get = ?Q(
-                             "imperial:to_binary(\n"
-                             "    imperial:get(_@key, _@context),\n"
-                             "    _@escaped\n"
-                             ")",
+                    Get = ?Q("imperial:get_binary(_@key, _@context, _@escaped)\n",
                              [{key, merl:term(Key)},
                               {context, merl:var(Context)},
                               {escaped, merl:term(Escaped)}]
